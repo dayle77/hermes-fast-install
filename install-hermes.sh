@@ -123,12 +123,28 @@ install_pkg() {
   local pkg="$1"
   if command -v apt-get &>/dev/null; then
     if [[ "$APT_UPDATED" == false ]]; then
+      # Если sources.list пустой — восстанавливаем стандартные репозитории Ubuntu
+      local sources_ok=false
+      if [[ -s /etc/apt/sources.list ]]; then
+        grep -qvE '^\s*#|^\s*$' /etc/apt/sources.list && sources_ok=true
+      fi
+      if [[ "$sources_ok" == false ]]; then
+        warn "sources.list пустой или отсутствует — добавляем стандартные репозитории Ubuntu..."
+        local codename
+        codename=$(lsb_release -sc 2>/dev/null || grep VERSION_CODENAME /etc/os-release | cut -d= -f2 || echo "jammy")
+        sudo tee /etc/apt/sources.list > /dev/null <<SOURCES
+deb http://archive.ubuntu.com/ubuntu ${codename} main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu ${codename}-updates main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu ${codename}-security main restricted universe multiverse
+SOURCES
+      fi
       log "Обновляем индекс пакетов (apt-get update)..."
       DEBIAN_FRONTEND=noninteractive sudo -E apt-get update -qq
       APT_UPDATED=true
     fi
     DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
-      sudo -E apt-get install -y -o Dpkg::Options::="--force-confold" "$pkg"
+      sudo -E apt-get install -y -o Dpkg::Options::="--force-confold" "$pkg" \
+      || die "Не удалось установить $pkg. Проверьте: cat /etc/apt/sources.list"
   elif command -v dnf &>/dev/null;    then sudo dnf install -y "$pkg"
   elif command -v pacman &>/dev/null; then sudo pacman -Sy --noconfirm "$pkg"
   elif command -v brew &>/dev/null;   then brew install "$pkg"
