@@ -118,9 +118,15 @@ echo ""
 # ─── Step 1: Prerequisites ────────────────────────────────────────────────────
 log "Checking prerequisites..."
 
+APT_UPDATED=false
 install_pkg() {
   local pkg="$1"
   if command -v apt-get &>/dev/null; then
+    if [[ "$APT_UPDATED" == false ]]; then
+      log "Обновляем индекс пакетов (apt-get update)..."
+      DEBIAN_FRONTEND=noninteractive sudo -E apt-get update -qq
+      APT_UPDATED=true
+    fi
     DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
       sudo -E apt-get install -y -o Dpkg::Options::="--force-confold" "$pkg"
   elif command -v dnf &>/dev/null;    then sudo dnf install -y "$pkg"
